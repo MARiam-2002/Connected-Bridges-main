@@ -1,37 +1,34 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+
+const mediaQueryCache = new Map<string, MediaQueryList>();
 
 /**
- * Custom hook for tracking the state of a media query.
- * @param {string} query - The media query string to watch.
- * @returns {boolean} - `true` if the media query matches, otherwise `false`.
+ * Optimized useMediaQuery with shared MediaQueryList instances.
+ * Prevents creating duplicate listeners for the same query.
  */
-
 export function useMediaQuery(query: string): boolean {
+    const getMediaQuery = () => {
+        if (typeof window === 'undefined') return null;
+        if (!mediaQueryCache.has(query)) {
+            mediaQueryCache.set(query, window.matchMedia(query));
+        }
+        return mediaQueryCache.get(query)!;
+    };
 
-    const [matches, setMatches] = useState(false);
+    const [matches, setMatches] = useState(() => {
+        return getMediaQuery()?.matches ?? false;
+    });
 
     useEffect(() => {
+        const mql = getMediaQuery();
+        if (!mql) return;
 
-        if (typeof window === 'undefined') {
-            return;
-        }
+        setMatches(mql.matches);
 
-        const media = window.matchMedia(query);
-
-        if (media.matches !== matches) {
-            setMatches(media.matches);
-        }
-
-        const listener = () => {
-            setMatches(media.matches);
-        };
-
-        media.addEventListener('change', listener);
-
-        return () => media.removeEventListener('change', listener);
-
-    }, [matches, query]);
+        const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
+        mql.addEventListener('change', handler);
+        return () => mql.removeEventListener('change', handler);
+    }, [query]);
 
     return matches;
-
 }
